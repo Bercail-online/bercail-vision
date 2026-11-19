@@ -6,6 +6,14 @@ req = urllib.request.Request(f"{url}/api/vision/pending?limit={os.environ.get('B
 m = json.load(urllib.request.urlopen(req, timeout=60))
 print(f"photos en attente : {m['count']} (consigne {m['prompt_version']})")
 gh = os.environ.get("GITHUB_OUTPUT")
+if os.environ.get("BV_ESSAI") == "1":
+    # Essai de bout en bout sans toucher à la base : une photo publique connue, résultats affichés et non renvoyés.
+    import hashlib
+    u = "https://bercail.online/simba.jpg"
+    b = urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "bercail-vision"}), timeout=60).read()
+    m["items"] = [{"photo_id": "essai", "url": u, "sha256": hashlib.sha256(b).hexdigest()}]
+    m["count"] = 1
+    print("mode essai : 1 photo publique (simba.jpg), aucun résultat ne sera enregistré")
 if m["count"] == 0:
     if gh: open(gh, "a").write("rien=1\n")
     sys.exit(0)

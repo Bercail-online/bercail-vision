@@ -21,6 +21,8 @@ Kaggle exécute un « script » comme un notebook (pas de __file__) : le code en
 Schéma p1 intégré si le serveur n'envoie pas « schema » ; le chef télécharge le modèle une fois avant les deux GPU.
 GitHub Actions attend de voir le noyau en file ou en cours avant d'accepter « terminé » (sinon il lisait la version précédente).
 
+Essai de bout en bout : Actions → « Analyse des photos de chats » → Run workflow → cocher « essai ». Une photo publique connue est analysée sur le GPU ; le résultat s'affiche dans le journal et rien n'est enregistré.
+
 ## Réglages (Settings → Secrets and variables → Actions)
 - Secrets : `BERCAIL_VISION_TOKEN`, et `KAGGLE_KEY` (fichier kaggle.json) ou `KAGGLE_API_TOKEN` (jeton KGAT_) ; variable `KAGGLE_USERNAME`. Téléphone vérifié sur Kaggle pour le GPU.
 - Variable facultative : `BERCAIL_URL` (par défaut `https://app.bercail.online`).

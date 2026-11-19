@@ -2,7 +2,12 @@ name: Analyse des photos de chats (Kaggle GPU)
 on:
   schedule:
     - cron: "17 3,9,15,21 * * *"     # 4 fois par jour (UTC) : 22 h 17, 4 h 17, 10 h 17, 16 h 17 à Montréal
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      essai:
+        description: "Essai : analyser une photo publique connue, sans rien enregistrer"
+        type: boolean
+        default: false
 concurrency:
   group: analyse
   cancel-in-progress: false
@@ -18,6 +23,7 @@ jobs:
       KAGGLE_USERNAME: ${{ vars.KAGGLE_USERNAME || secrets.KAGGLE_USERNAME }}
       KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}   # jeton KGAT_ (nouveau format)
       KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}               # ancien format, facultatif
+      BV_ESSAI: ${{ inputs.essai && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -50,4 +56,4 @@ jobs:
         run: |
           mkdir -p out
           kaggle kernels output "$KAGGLE_USERNAME/bercail-vision" -p out > /dev/null || true
-          python scripts/post_results.py out/results.jsonl
+          if [ "$BV_ESSAI" = 1 ]; then python scripts/post_results.py --essai out/results.jsonl; else python scripts/post_results.py out/results.jsonl; fi
