@@ -1,0 +1,47 @@
+name: Analyse des photos de chats (Kaggle GPU)
+on:
+  schedule:
+    - cron: "17 3,9,15,21 * * *"     # 4 fois par jour (UTC) : 22 h 17, 4 h 17, 10 h 17, 16 h 17 à Montréal
+  workflow_dispatch: {}
+concurrency:
+  group: analyse
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  analyse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      BERCAIL_URL: ${{ vars.BERCAIL_URL || 'https://app.bercail.online' }}
+      BERCAIL_VISION_TOKEN: ${{ secrets.BERCAIL_VISION_TOKEN }}
+      KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+      KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: File d'attente
+        id: prep
+        run: python scripts/prepare.py
+      - name: Lancer le notebook Kaggle (GPU T4)
+        if: steps.prep.outputs.rien == '0'
+        run: |
+          pip install -q kaggle
+          kaggle kernels push -p build
+      - name: Attendre la fin
+        if: steps.prep.outputs.rien == '0'
+        run: |
+          K="$KAGGLE_USERNAME/bercail-vision"
+          for i in $(seq 1 300); do
+            S=$(kaggle kernels status "$K" 2>&1 | tr -d '\n')
+            case "$S" in *complete*|*COMPLETE*) echo "terminé"; exit 0;; *error*|*ERROR*|*cancel*|*CANCEL*) echo "$S"; exit 1;; esac
+            sleep 60
+          done
+          echo "trop long"; exit 1
+      - name: Récupérer et renvoyer les résultats
+        if: always() && steps.prep.outputs.rien == '0'
+        run: |
+          mkdir -p out
+          kaggle kernels output "$KAGGLE_USERNAME/bercail-vision" -p out > /dev/null || true
+          python scripts/post_results.py out/results.jsonl
