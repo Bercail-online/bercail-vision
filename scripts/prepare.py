@@ -10,7 +10,10 @@ if m["count"] == 0:
     if gh: open(gh, "a").write("rien=1\n")
     sys.exit(0)
 os.makedirs("build", exist_ok=True)
-src = open("kernel/analyse.py", encoding="utf-8").read().replace("__MANIFEST__", json.dumps(m, ensure_ascii=False).replace("'''", "'\\''"))
+import base64
+src = open("kernel/analyse.py", encoding="utf-8").read()
+assert src.count("__MANIFEST_B64__") == 1, "le gabarit doit contenir une seule fois __MANIFEST_B64__"
+src = src.replace("__MANIFEST_B64__", base64.b64encode(json.dumps(m, ensure_ascii=False).encode("utf-8")).decode("ascii"))
 open("build/analyse.py", "w", encoding="utf-8").write(src)
 user = os.environ["KAGGLE_USERNAME"]
 json.dump({"id": f"{user}/bercail-vision", "title": "bercail-vision", "code_file": "analyse.py", "language": "python",

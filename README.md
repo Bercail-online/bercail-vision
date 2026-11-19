@@ -10,8 +10,14 @@ Analyse automatique des photos de chats de [Bercail](https://bercail.online), 4 
 La description est **un indice, jamais une identification**. Elle ne retire ni ne baisse jamais une fiche.
 Si Kaggle échoue, le serveur de Bercail prend le relais avec des API gratuites (Cloudflare Workers AI, etc.).
 
+## Notebook, version 2
+- Les deux GPU T4 travaillent en parallèle (une copie du modèle chacune, la file partagée en deux).
+- La réponse du modèle est vérifiée contre le schéma envoyé par Bercail ; s'il manque une clé, une seconde chance part avec une consigne plus stricte et une réponse amorcée par `{`.
+- L'empreinte SHA-256 est recalculée sur la photo téléchargée : une photo changée depuis la mise en file n'est pas analysée.
+- Une photo en erreur n'est jamais marquée faite : elle revient au passage suivant.
+
 ## Réglages (Settings → Secrets and variables → Actions)
-- Secrets : `BERCAIL_VISION_TOKEN`, `KAGGLE_USERNAME`, `KAGGLE_KEY` (Kaggle → Settings → API → Create New Token ; téléphone vérifié pour le GPU).
+- Secrets : `BERCAIL_VISION_TOKEN`, et `KAGGLE_KEY` (fichier kaggle.json) ou `KAGGLE_API_TOKEN` (jeton KGAT_) ; variable `KAGGLE_USERNAME`. Téléphone vérifié sur Kaggle pour le GPU.
 - Variable facultative : `BERCAIL_URL` (par défaut `https://app.bercail.online`).
 
 Le dépôt est public (minutes GitHub Actions gratuites et illimitées). Les journaux n'affichent que des comptes.
