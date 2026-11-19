@@ -28,7 +28,7 @@ jobs:
       - name: Lancer le notebook Kaggle (GPU T4)
         if: steps.prep.outputs.rien == '0'
         run: |
-          pip install -q "kaggle>=1.8"
+          pip install -q "kaggle>=1.8" six
           kaggle kernels push -p build
       - name: Attendre la fin
         if: steps.prep.outputs.rien == '0'
