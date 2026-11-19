@@ -16,6 +16,11 @@ Si Kaggle échoue, le serveur de Bercail prend le relais avec des API gratuites 
 - L'empreinte SHA-256 est recalculée sur la photo téléchargée : une photo changée depuis la mise en file n'est pas analysée.
 - Une photo en erreur n'est jamais marquée faite : elle revient au passage suivant.
 
+Notebook, version 2.1
+Kaggle exécute un « script » comme un notebook (pas de __file__) : le code envoyé est un petit lanceur qui dépose le vrai script dans /tmp, le lance et relaie son journal. Sans lui, la v2 relançait ipykernel et restait bloquée.
+Schéma p1 intégré si le serveur n'envoie pas « schema » ; le chef télécharge le modèle une fois avant les deux GPU.
+GitHub Actions attend de voir le noyau en file ou en cours avant d'accepter « terminé » (sinon il lisait la version précédente).
+
 ## Réglages (Settings → Secrets and variables → Actions)
 - Secrets : `BERCAIL_VISION_TOKEN`, et `KAGGLE_KEY` (fichier kaggle.json) ou `KAGGLE_API_TOKEN` (jeton KGAT_) ; variable `KAGGLE_USERNAME`. Téléphone vérifié sur Kaggle pour le GPU.
 - Variable facultative : `BERCAIL_URL` (par défaut `https://app.bercail.online`).

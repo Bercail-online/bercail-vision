@@ -34,9 +34,14 @@ jobs:
         if: steps.prep.outputs.rien == '0'
         run: |
           K="$KAGGLE_USERNAME/bercail-vision"
+          VU=0   # juste après le push, « status » peut encore montrer la version précédente (déjà terminée)
           for i in $(seq 1 300); do
             S=$(kaggle kernels status "$K" 2>&1 | tr -d '\n')
-            case "$S" in *complete*|*COMPLETE*) echo "terminé"; exit 0;; *error*|*ERROR*|*cancel*|*CANCEL*) echo "$S"; exit 1;; esac
+            case "$S" in
+              *queued*|*QUEUED*|*running*|*RUNNING*) VU=1;;
+              *complete*|*COMPLETE*) if [ "$VU" = 1 ] || [ "$i" -gt 5 ]; then echo "terminé"; exit 0; fi;;
+              *error*|*ERROR*|*cancel*|*CANCEL*) if [ "$VU" = 1 ] || [ "$i" -gt 5 ]; then echo "$S"; exit 1; fi;;
+            esac
             sleep 60
           done
           echo "trop long"; exit 1

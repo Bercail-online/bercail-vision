@@ -9,6 +9,9 @@
 #  - plus de « reprise » (Kaggle repart d'un dossier vide) : une photo en erreur reste en attente pour le prochain passage ;
 #  - les deux T4 travaillent en parallèle, chacune avec sa copie du modèle ;
 #  - transformers est épinglé à une plage connue.
+# Version 2.1 : Kaggle exécute un « script » comme un notebook (pas de __file__, sys.argv[0] = ipykernel_launcher.py) ;
+#  le lanceur écrit par scripts/prepare.py dépose ce fichier sur le disque et le lance, et on refuse de relancer ipykernel.
+#  Schéma p1 par défaut si le serveur n'en envoie pas ; modèle téléchargé une fois par le chef avant les deux GPU.
 import base64, hashlib, io, json, os, re, subprocess, sys, time
 
 MANIFEST = json.loads(base64.b64decode("__MANIFEST_B64__").decode("utf-8"))
@@ -27,13 +30,18 @@ def log(*a):
 
 # ---------------------------------------------------------------- chef d'orchestre : installe, partage, rassemble
 SCRIPT = globals().get("__file__") or (sys.argv[0] if sys.argv and sys.argv[0] else "")
-SEUL = RANG < 0 and not os.path.isfile(SCRIPT)                     # pas de fichier à relancer : un seul travailleur, ici
+SEUL = RANG < 0 and (not os.path.isfile(SCRIPT) or "ipykernel" in os.path.basename(SCRIPT))  # rien à relancer : un seul travailleur, ici
 if SEUL:
     RANG = 0
 if RANG < 0:
     if os.path.exists("/kaggle"):
         subprocess.run([sys.executable, "-m", "pip", "install", "-q", "transformers>=4.57.1,<4.60", "accelerate>=1.0"], check=False)
     import torch
+    try:                                                           # un seul téléchargement, avant les deux copies
+        from huggingface_hub import snapshot_download
+        snapshot_download(MODELE)
+    except Exception as e:
+        log(f"préchargement du modèle impossible ({type(e).__name__}) : chaque GPU le chargera")
     n_gpu = torch.cuda.device_count()
     n = max(1, min(n_gpu, 2, len(MANIFEST["items"])))
     log(f"{len(MANIFEST['items'])} photos ; {n_gpu} GPU ; {n} travailleur(s)")
@@ -68,7 +76,30 @@ proc = AutoProcessor.from_pretrained(MODELE)
 model = AutoModelForImageTextToText.from_pretrained(MODELE, dtype=dtype, device_map="cuda:0" if cuda else "cpu").eval()
 CONSIGNE = MANIFEST["consigne"]
 VERSION = MANIFEST["prompt_version"]
-SCHEMA = MANIFEST.get("schema") or {}
+# Schéma de la consigne p1, utilisé si le serveur n'envoie pas « schema » (le serveur reste la référence).
+_INC = "incertain"
+SCHEMA_P1 = {
+    "keys": ["animaux_visibles", "espece", "couleurs_pelage", "motif", "longueur_poil", "zones_blanches", "couleur_yeux",
+             "couleur_truffe", "signes_distinctifs", "collier", "qualite_photo", "eclairage", "confiance_globale"],
+    "enums": {
+        "espece": ["chat", "chien", "autre", _INC],
+        "motif": ["uni", "tabby_tigre", "tabby_classique", "tabby_tachete", "tabby_ticked", "calico", "ecaille_tortie",
+                  "bicolore", "van", "arlequin", "colorpoint", "smoke", _INC],
+        "longueur_poil": ["court", "mi_long", "long", _INC],
+        "couleur_yeux": ["jaune", "ambre", "vert", "bleu", "vairons", _INC],
+        "couleur_truffe": ["rose", "noire", "brique", "grise", "mixte", _INC],
+        "collier": ["oui", "non", _INC],
+        "qualite_photo": ["bonne", "moyenne", "mauvaise"],
+        "eclairage": ["naturel", "flash", "faible", _INC],
+        "confiance_globale": ["haute", "moyenne", "basse"],
+    },
+    "lists": {
+        "couleurs_pelage": ["noir", "blanc", "roux", "creme", "gris_bleu", "brun", "chocolat", "lilas", _INC],
+        "zones_blanches": ["aucune", "poitrail", "ventre", "pattes_avant", "pattes_arriere", "museau", "liste_front",
+                           "menton", "bout_queue", _INC],
+    },
+}
+SCHEMA = MANIFEST.get("schema") or (SCHEMA_P1 if MANIFEST.get("prompt_version") == "p1" else {})
 CLES = SCHEMA.get("keys") or []
 FOURNISSEUR = "kaggle:" + MODELE.split("/")[-1]
 STRICTE = (CONSIGNE + "\n\nIMPORTANT : ta réponse précédente n'était pas utilisable. Réponds par UN SEUL objet JSON, sans texte, "
@@ -103,8 +134,16 @@ def verifier(t):
         raise ValueError("clés manquantes : " + ", ".join(manque[:5]))
     hors = 0
     for k, permis in (SCHEMA.get("enums") or {}).items():
-        if str(t.get(k, "")).strip().lower() not in permis:
+        v = str(t.get(k, "")).strip().lower()
+        if v in permis:
+            t[k] = v
+        else:
             t[k] = "incertain" if "incertain" in permis else t.get(k); hors += 1
+    if "animaux_visibles" in t and not isinstance(t["animaux_visibles"], int):
+        try:
+            t["animaux_visibles"] = int(t["animaux_visibles"])
+        except (TypeError, ValueError):
+            t["animaux_visibles"] = None; hors += 1
     for k, permis in (SCHEMA.get("lists") or {}).items():
         v = t.get(k)
         v = v if isinstance(v, list) else [v]
